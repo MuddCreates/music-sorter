@@ -1,0 +1,6 @@
+*.csv
+*.mid
+*.mp3
+/.lein-failures
+/.nrepl-port
+/target/
