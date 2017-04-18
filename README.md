@@ -23,22 +23,22 @@ like [smarter-playlist][smarter-playlist], but even smarter!
   the [Leiningen][leiningen] build manager. As such, you will need to
   install Leiningen. On macOS, use [Homebrew][homebrew]:
 
-        $ brew install leiningen
+      $ brew install leiningen
 
 * To convert between MIDI and CSV formats, we use [MIDICSV][midicsv].
   On macOS, use [Homebrew][homebrew]:
 
-        $ brew install midicsv
+      $ brew install midicsv
 
 ## Development
 
 * Clone the repository:
 
-        $ git clone https://github.com/MuddCreates/music-sorter.git
+      $ git clone https://github.com/MuddCreates/music-sorter.git
 
 * To start a REPL for development, run:
 
-        $ lein repl
+      $ lein repl
 
 * For a better development experience, install [CIDER][cider]
   for [Emacs][emacs] and run `M-x cider-jack-in` to launch a REPL
