@@ -11,6 +11,27 @@
          fname)
        "." new))
 
+;; Algorithm:
+;; * we have some string and regex to split on
+;; * we split the string by the regex
+;; * we look at the first split
+;; * if it doesn't start with a quote, move on
+;; * if it starts with a quote, check if it ends with a quote
+;; * if it ends with a quote, trim both quotes and move on
+;; * if the next split ends with a quote, trim both quotes, re-join, and move on
+;; * once we run out of splits, we're done
+
+(defn split-allowing-quotes
+  [s re]
+  (let [re (re-pattern (str "^(" re ")"))]
+    (loop [segments []
+           segment ""
+           quoted? false
+           s s]
+      (if quoted?
+        (if ))
+      (if-let [[_ match] (re-find s re)]))))
+
 (defn sh-succeeds?
   "Run a command and return logical true if it exists and succeeds.
   The args are passed to `clojure.java.shell/sh`."
