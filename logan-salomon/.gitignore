@@ -1,4 +1,7 @@
-*.au
-*.wav
+# files for testing
+/resources/*.au
+/resources/*.mp3
+/resources/*.wav
 
+# virtual environment
 /venv/
