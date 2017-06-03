@@ -20,9 +20,22 @@ def convert_mp3_to_wav(mp3_name, wav_name=None):
     return wav_name
 
 def convert_wav_to_signal(wav_name):
-    """Read a wav from disk and return a tuple (signal, sample_rate)."""
+    """Read a wav from disk and return a tuple (signal, sample_rate).
+
+    The length of signal divided by sample_rate will be the length of
+    the wav in seconds.
+    """
     return tuple(reversed(scipy.io.wavfile.read(wav_name)))
 
-def convert_signal_to_mfccs(signal, sample_rate):
+def convert_signal_to_mfcc_frames(signal, sample_rate):
+    """Convert a signal into frames and report the MFCCs for each.
+
+    The number of MFCC frames multiplied by 10ms will be the length of
+    the wav, unless it's stereo (in which case it will be twice the
+    length of the wav, see [1]). Each MFCC frame is a vector of length
+    13, the number of MFCC coefficients.
+
+    [1]: https://github.com/jameslyons/python_speech_features/issues/42
+    """
     return python_speech_features.base.mfcc(signal, samplerate=sample_rate)
 
