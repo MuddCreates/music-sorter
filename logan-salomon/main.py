@@ -23,11 +23,6 @@ def convert_wav_to_signal(wav_name):
     """Read a wav from disk and return a tuple (signal, sample_rate)."""
     return tuple(reversed(scipy.io.wavfile.read(wav_name)))
 
-def convert_signal_to_frames(signal, sample_rate, frame_length=25/1000):
-    """Split a signal into frames of the given length."""
-    signal_duration = len(signal) / sample_rate
-    frame_count = signal_duration / frame_length
-    return numpy.array_split(signal, frame_count)
+def convert_signal_to_mfccs(signal, sample_rate):
+    return python_speech_features.base.mfcc(signal, samplerate=sample_rate)
 
-def convert_frame_to_mfcc(frame, sample_rate):
-    return python_speech_features.base.mfcc(frame, samplerate=sample_rate)
