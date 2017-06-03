@@ -49,6 +49,10 @@ Install the dependencies:
 
     $ pip install -r requirements.txt
 
+Play around with the code:
+
+    $ python -i main.py
+
 Once you are done with the project, deactivate the virtualenv:
 
     $ deactivate
