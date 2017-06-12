@@ -1,6 +1,7 @@
-# No shebang here. You need to run it from the virtualenv.
+#!/usr/bin/env python
 
 import numpy
+import pyemd
 import python_speech_features.base
 import scipy.cluster.vq
 import scipy.io.wavfile
@@ -46,42 +47,68 @@ def convert_signal_to_mfcc_frames(signal,
 
 class Cluster:
     """A cluster of MFCC frames. Only the summary statistics are preserved."""
-    def __init__(self, frames=None, mean=None, covariance=None, weight=None):
-        """Create a Cluster from a numpy array of MFCC frames.
-
-        Alternatively, pass mean, covariance, and weight instead of frames."""
-        if frames is not None:
-            # TODO: calculate mean and covariance -- but how on earth
-            # do you get scalars for the mean and covariance of a set
-            # of points??
-            self.mean = None
-            self.covariance = None
-            self.weight = len(frames)
-        else:
-            self.mean = mean
-            self.covariance = covariance
-            self.weight = weight
+    def __init__(self, frames):
+        """Create a Cluster from a list of MFCC frames."""
+        frames = numpy.array(frames)
+        self.mean = frames.mean(axis=0)
+        self.covariance = numpy.cov(frames.T)
+        self.weight = len(frames)
     def distance(self, other):
-        return (self.covariance / other.covariance +
-                other.covariance / self.covariance +
-                (self.mean - other.mean) ** 2 *
-                (1 / self.covariance + 1 / other.covariance))
+        # Implementation of symmetric Kullback-Leibler distance
+        # between two multivariate normal distributions, see [1].
+        #
+        # The asymmetric Kullback-Leibler distance is defined as:
+        #
+        #   1/2 ( tr( inv(cov_2) * cov_1 ) +
+        #         ( transpose( mean_2 - mean_1 ) *
+        #           inv( cov_2 ) *
+        #           ( mean_2 - mean_1 ) ) -
+        #         dimension +
+        #         ln ( det( cov_2 ) / det ( cov_1 ) ) )
+        #
+        # We compute the symmetric distance as:
+        #
+        #   D_sym(N1, N2) = D_asym(N1, N2) + D_asym(N2, N1)
+        #
+        # This causes the ln term to drop out.
+        #
+        # Note that the inverse of the covariance matrix is called the
+        # precision matrix.
+        #
+        # [1]: https://en.wikipedia.org/wiki/Kullback%E2%80%93Leibler_divergence#Kullback.E2.80.93Leibler_divergence_for_multivariate_normal_distributions
+        dimension = len(self.mean)
+        difference = other.mean - self.mean
+        covariance1 = self.covariance
+        covariance2 = other.covariance
+        # FIXME: sometimes these matrices are singular!
+        precision1 = numpy.linalg.inv(covariance1)
+        precision2 = numpy.linalg.inv(covariance2)
+        return 1/2 * (
+            precision2.dot(covariance1).trace() +
+            precision1.dot(covariance2).trace() +
+            difference.T.dot(precision1 + precision2).dot(difference)
+        ) - dimension
     def __repr__(self):
-        return ("Cluster(mean={}, covariance={}, weight={})"
+        return ("<Cluster mean={} covariance={} weight={}>"
                 .format(self.mean, self.covariance, self.weight))
 
 class Signature:
     """The signature for a song, used for computing distances between songs."""
-    def __init__(self, frame_groups=None, clusters=None):
-        """Create a Signature from a list of MFCC frame groups.
-
-        Alternatively, pass a list of Cluster objects."""
-        if frame_groups is not None:
-            self.clusters = [Cluster(frame_group) for frame_group in frame_groups]
-        else:
-            self.clusters = clusters
+    def __init__(self, frame_groups):
+        """Create a Signature from a list of MFCC frame groups."""
+        self.clusters = [Cluster(frame_group) for frame_group in frame_groups]
+    def distance(self, other):
+        num_clusters = len(self.clusters)
+        dist_matrix = numpy.empty([num_clusters, num_clusters])
+        for i in range(num_clusters):
+            for j in range(num_clusters):
+                dist = self.clusters[i].distance(self.clusters[j])
+                dist_matrix[i, j] = dist_matrix[j, i] = dist
+        signature1 = numpy.array(c.weight for cluster in self.clusters)
+        signature2 = numpy.array(c.weight for cluster in other.clusters)
+        return pyemd.emd(signature1, signature2, dist_matrix)
     def __repr__(self):
-        return "Signature(clusters=[{}])".format(", ".join(map(repr, self.clusters)))
+        return "<Signature {}>".format(" ".join(map(repr, self.clusters)))
 
 def cluster_mfcc_frames(frames, num_clusters=16):
     """Cluster MFCC frames using k-means and return a list of the groups."""
@@ -96,20 +123,31 @@ def cluster_mfcc_frames(frames, num_clusters=16):
 
 if __name__ == "__main__":
     if len(sys.argv) > 1:
-        filename = sys.argv[1]
-        if filename.endswith(".mp3"):
-            print("Converting wav to mp3.")
-            wav_name = convert_mp3_to_wav(filename)
-        elif filename.endswith(".wav"):
-            wav_name = filename
-        else:
-            print("usage: main.py [FILENAME.mp3 | FILENAME.wav]")
-            sys.exit(1)
-        print("Converting wav to signal.")
-        signal, sample_rate = convert_wav_to_signal(wav_name)
-        print("Converting signal to MFCC frames.")
-        frames = convert_signal_to_mfcc_frames(signal, sample_rate)
-        print("Clustering MFCC frames.")
-        frame_groups = cluster_mfcc_frames(frames)
-        print("Computing signature.")
-        signature = Signature(frame_groups)
+        filenames = sys.argv[1:]
+        signatures = {}
+        for filename in filenames:
+            print("Processing '{}'.".format(filename))
+            if filename.endswith(".mp3"):
+                print("  Converting wav to mp3.")
+                wav_name = convert_mp3_to_wav(filename)
+            elif filename.endswith(".wav"):
+                wav_name = filename
+            else:
+                print("usage: main.py [FILENAME.mp3 | FILENAME.wav]")
+                sys.exit(1)
+            print("  Converting wav to signal.")
+            signal, sample_rate = convert_wav_to_signal(wav_name)
+            print("  Converting signal to MFCC frames.")
+            frames = convert_signal_to_mfcc_frames(signal, sample_rate)
+            print("  Clustering MFCC frames.")
+            frame_groups = cluster_mfcc_frames(frames)
+            print("  Computing signature.")
+            signature = Signature(frame_groups)
+            signatures[filename] = signature
+        for filename1, signature1 in signatures.items():
+            for filename2, signature2 in signatures.items():
+                if filename1 != filename2:
+                    print("Comparing '{}' with '{}'."
+                          .format(filename1, filename2))
+                    distance = signature1.distance(signature2)
+                    print("  Distance: {}".format(distance))
